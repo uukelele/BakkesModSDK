@@ -95,28 +95,73 @@ Copy the generated `_bindings.pyd` alongside `bakkesmod/__init__.py`.
 - **Visual Studio 2019+** with the "Desktop development with C++" workload
 - **pybind11** (`pip install pybind11`)
 
-### Usage
+### How Python Plugins Work
 
-Here's the simplest possible Python plugin:
+A Python plugin consists of two pieces:
 
-```python
-from bakkesmod import GameWrapper, CVarManagerWrapper, NOTIFIER_PERMISSION
+1. **`_bindings.pyd`** — The compiled CPython extension (the `.dll` you built above). Goes into the `bakkesmod/` package folder.
+2. **Your `.py` script** — A Python file with a class implementing `on_load` / `on_unload`. Goes into the BakkesMod plugins folder.
 
-class MyPlugin:
-    def on_load(self, game_wrapper: GameWrapper, cvar_manager: CVarManagerWrapper) -> None:
-        self.gw = game_wrapper
-        cvar_manager.registerNotifier("hello", lambda args: self._hello(), "Say hello.", NOTIFIER_PERMISSION.ALL)
+BakkesMod's Python plugin system uses [pybind11](https://github.com/pybind/pybind11) under the hood. When it loads a Python script, it calls `on_load(game_wrapper, cvar_manager)` and your plugin registers cvars, notifiers, hooks, and drawables — exactly like a C++ plugin.
 
-    def _hello(self) -> None:
-        self.gw.LogToChatbox("Hello from Python!", "MyPlugin")
+### Loading a Python Plugin Ingame
 
-    def on_unload(self) -> None:
-        pass
-```
+1. **Install the bindings** (one-time):
+   ```powershell
+   cd python
+   pip install .
+   ```
+   This compiles `_bindings.pyd` and installs the `bakkesmod` package into your Python environment. BakkesMod needs to find this package at runtime — see requirements below.
 
-Save this as a `.py` file in `bakkesmod/plugins/` (inside the BakkesMod data folder), then run `plugin load my_plugin` from the BakkesMod console. Use `hello` to test it.
+2. **Write your plugin** as a `.py` file. The class must define `on_load(self, game_wrapper, cvar_manager)` and `on_unload(self)`:
+   ```python
+   from bakkesmod import GameWrapper, CVarManagerWrapper, NOTIFIER_PERMISSION
 
-See the [examples](python/examples/) directory for complete, documented plugins covering the full API surface.
+   class MyPlugin:
+       def on_load(self, game_wrapper: GameWrapper, cvar_manager: CVarManagerWrapper) -> None:
+           self.gw = game_wrapper
+           cvar_manager.registerNotifier("hello", lambda args: self._hello(), "Say hello.", NOTIFIER_PERMISSION.ALL)
+
+       def _hello(self) -> None:
+           self.gw.LogToChatbox("Hello from Python!", "MyPlugin")
+
+       def on_unload(self) -> None:
+           pass
+   ```
+
+3. **Place the `.py` file** in the BakkesMod `plugins/` folder (typically `%appdata%\bakkesmod\bakkesmod\plugins\`).
+
+4. **Start Rocket League** and open the BakkesMod console (default: **F6**). Type:
+   ```
+   plugin load my_plugin
+   ```
+   (Omit the `.py` extension, just like C++ plugins omit `.dll`.)
+
+5. **Test it**: Type `hello` in the console. You should see `"Hello from Python!"` in the chatbox.
+
+6. **Unload** at any time:
+   ```
+   plugin unload my_plugin
+   ```
+
+### Python Plugin Lifecycle
+
+| Event | What happens |
+|---|---|
+| `plugin load my_plugin` | BakkesMod imports `my_plugin.py` and calls `MyPlugin.on_load(gw, cvar)` |
+| Console command typed | Your notifier callback fires with `args[0]` = command name, `args[1:]` = arguments |
+| Game event fires | Your hook callback fires with the event name string |
+| `plugin unload my_plugin` | BakkesMod calls `MyPlugin.on_unload()`, then automatically cleans up all cvars, notifiers, hooks, and drawables |
+| Plugin reloaded | BakkesMod calls `on_unload()`, re-imports the module, then calls `on_load()` again |
+
+### Important Notes
+
+- **Notifiers, cvars, hooks, and drawables are automatically cleaned up** on unload — you don't need to manually remove them in `on_unload()`.
+- **HTTP callbacks run on background threads**. Always wrap SDK calls in `GameWrapper.Execute(lambda _: ...)` when inside an HTTP callback — see the [http_requests.py](python/examples/http_requests.py) example.
+- **The `bakkesmod` package** (with `_bindings.pyd` inside) must be importable by BakkesMod's embedded Python. This usually means it needs to be installed in BakkesMod's bundled Python environment, or `PYTHONPATH` must point to it.
+- **Naming**: Your plugin's `.py` filename becomes its plugin name. Avoid spaces and special characters.
+
+See the [examples](python/examples/) directory for complete, documented plugins covering the full API surface — each one is a real plugin you can load with `plugin load <name>`.
 
 ### API Coverage
 
