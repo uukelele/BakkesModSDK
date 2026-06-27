@@ -15,7 +15,6 @@ The plugin interacts with the game through two main objects:
 from bakkesmod import (
     GameWrapper,
     CVarManagerWrapper,
-    PLUGINTYPE,
     NOTIFIER_PERMISSION,
     Vector,
     ServerWrapper,
@@ -23,12 +22,7 @@ from bakkesmod import (
 
 
 class BasicPlugin:
-    """A minimal BakkesMod plugin example.
-
-    This class mirrors the C++ BakkesModPlugin base class pattern.
-    In a real plugin, you would instantiate this and pass it to the
-    BAKKESMOD_PLUGIN equivalent registration logic.
-    """
+    """A minimal BakkesMod plugin."""
 
     def __init__(self) -> None:
         self.game_wrapper: GameWrapper | None = None

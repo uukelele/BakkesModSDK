@@ -61,6 +61,12 @@ class HttpDemo:
             "Check BakkesMod plugin API version via HTTP.",
             NOTIFIER_PERMISSION.ALL,
         )
+        cvar_manager.registerNotifier(
+            "http_post",
+            self._on_http_post,
+            "Perform a JSON POST request. Usage: http_post <url> <json_body>",
+            NOTIFIER_PERMISSION.ALL,
+        )
 
         game_wrapper.LogToChatbox(
             "HttpDemo loaded. Try: http_get https://httpbin.org/get",
@@ -80,32 +86,19 @@ class HttpDemo:
         url = args[1]
         self._log(f"GET: {url}")
 
-        # Build the request
         request = CurlRequest()
         request.url = url
-        request.method = "GET"
-        request.timeout = 10.0
-        request.maxRedirects = 5
+        request.verb = "GET"
 
-        # Send with string callback
-        # NOTE: The callback runs on a BACKGROUND THREAD!
-        # Use game_wrapper.Execute() to run game-thread code.
         gw = self.game_wrapper
 
         def on_complete(http_code: int, response: str) -> None:
-            """Handle HTTP response on background thread.
-
-            Args:
-                http_code: HTTP status code.
-                response: Response body string.
-            """
-            # Capture gw in closure to access game wrapper on game thread
             gw.Execute(lambda _: self._on_response(http_code, response))
 
         HttpWrapper.SendCurlRequest(request, on_complete)
 
     def _on_http_json(self, args: list[str]) -> None:
-        """Perform a JSON GET request with auto-set Accept/Content-Type headers.
+        """Perform a JSON GET request.
 
         Args:
             args: [command_name, url]
@@ -119,8 +112,35 @@ class HttpDemo:
 
         request = CurlRequest()
         request.url = url
-        request.method = "GET"
-        request.timeout = 10.0
+        request.verb = "GET"
+
+        gw = self.game_wrapper
+
+        def on_complete(http_code: int, response: str) -> None:
+            gw.Execute(lambda _: self._on_response(http_code, response))
+
+        HttpWrapper.SendCurlJsonRequest(request, on_complete)
+
+    def _on_http_post(self, args: list[str]) -> None:
+        """Perform a JSON POST request.
+
+        Args:
+            args: [command_name, url, json_body]
+        """
+        if len(args) < 2:
+            self._log("Usage: http_post <url> [json_body]")
+            return
+
+        url = args[1]
+        body = args[2] if len(args) > 2 else '{"key": "value"}'
+
+        self._log(f"POST: {url}")
+
+        request = CurlRequest()
+        request.url = url
+        request.verb = "POST"
+        request.body = body
+        request.headers = {"Content-Type": "application/json"}
 
         gw = self.game_wrapper
 
@@ -139,8 +159,7 @@ class HttpDemo:
 
         request = CurlRequest()
         request.url = "https://api.bakkesmod.com/version"
-        request.method = "GET"
-        request.timeout = 5.0
+        request.verb = "GET"
 
         gw = self.game_wrapper
 
@@ -150,7 +169,6 @@ class HttpDemo:
                     self._log(f"API Response ({http_code}): {response[:200]}")
                 else:
                     self._log(f"HTTP Error: {http_code}")
-                # Also show local version
                 version = gw.GetBakkesModVersion()
                 self._log(f"Local BakkesMod version: {version}")
 
@@ -165,21 +183,16 @@ class HttpDemo:
             http_code: HTTP status code.
             response: The response body.
         """
-        if http_code == 418:
-            self._log(f"Request failed (HTTP 418 - I'm a teapot / error)")
-            return
-
         self._log(f"HTTP {http_code}: received {len(response)} bytes")
         self._log(f"Response (first 300 chars): {response[:300]}")
 
-        # Show a toast notification
         if self.game_wrapper:
             self.game_wrapper.Toast(
                 "HTTP Response",
                 f"Status: {http_code}, {len(response)} bytes",
                 "default",
                 3.0,
-                0,  # Info
+                0,
             )
 
     def _log(self, message: str) -> None:
@@ -190,28 +203,3 @@ class HttpDemo:
         """
         if self.cvar_manager:
             self.cvar_manager.log(f"[HttpDemo] {message}")
-
-
-# ------------------------------------------------------------------
-# Example: POST JSON data
-# ------------------------------------------------------------------
-
-def send_post_example(game_wrapper: GameWrapper) -> None:
-    """Example of sending a JSON POST request.
-
-    Args:
-        game_wrapper: The main SDK entry point.
-    """
-    request = CurlRequest()
-    request.url = "https://httpbin.org/post"
-    request.method = "POST"
-    request.body = '{"key": "value", "plugin": "python-bindings"}'
-    request.headers = ["Content-Type: application/json"]
-    request.timeout = 10.0
-
-    def on_complete(http_code: int, response: str) -> None:
-        game_wrapper.Execute(lambda _: print(
-            f"POST response ({http_code}): {response[:200]}"
-        ))
-
-    HttpWrapper.SendCurlJsonRequest(request, on_complete)

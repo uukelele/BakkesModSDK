@@ -15,7 +15,6 @@ Key APIs:
 """
 
 import math
-from typing import Any
 
 from bakkesmod import (
     GameWrapper,
@@ -26,8 +25,6 @@ from bakkesmod import (
     CarWrapper,
     BallWrapper,
     Vector,
-    Rotator,
-    LinearColor,
     NOTIFIER_PERMISSION,
 )
 
@@ -346,68 +343,3 @@ class TrainingTools:
         """
         if self.cvar_manager:
             self.cvar_manager.log(f"[TrainingTools] {message}")
-
-
-# ------------------------------------------------------------------
-# Utility functions for training scripts
-# ------------------------------------------------------------------
-
-def set_car_color_for_training(
-    game_wrapper: GameWrapper,
-    main_color: tuple[float, float, float, float],
-    secondary_color: tuple[float, float, float, float],
-) -> None:
-    """Set the local car's colors (only works in freeplay).
-
-    Args:
-        game_wrapper: The main SDK entry point.
-        main_color: RGBA tuple for the primary color (0-1).
-        secondary_color: RGBA tuple for the secondary color (0-1).
-    """
-    car = game_wrapper.GetLocalCar()
-    if car.IsNull():
-        return
-
-    main = LinearColor(main_color[0], main_color[1], main_color[2], main_color[3])
-    secondary = LinearColor(
-        secondary_color[0], secondary_color[1],
-        secondary_color[2], secondary_color[3],
-    )
-    car.SetCarColor(main, secondary)
-
-
-def teleport_ball_to_target(
-    game_wrapper: GameWrapper,
-    target_location: Vector,
-    target_rotation: Vector,
-) -> None:
-    """Teleport the ball to a specific location (freeplay).
-
-    Args:
-        game_wrapper: The main SDK entry point.
-        target_location: Desired ball position.
-        target_rotation: Desired ball rotation.
-    """
-    server = game_wrapper.GetCurrentGameEvent().GetServer()
-    ball = server.GetBall()
-    if ball.IsNull():
-        return
-
-    ball.SetLocation(target_location)
-    ball.SetRotation(Rotator(int(target_rotation.X), int(target_rotation.Y), int(target_rotation.Z)))
-
-
-def apply_freeplay_boost(
-    game_wrapper: GameWrapper,
-    enable: bool = True,
-) -> None:
-    """Enable or disable infinite boost for the local car.
-
-    Args:
-        game_wrapper: The main SDK entry point.
-        enable: True for infinite boost, False to disable.
-    """
-    car = game_wrapper.GetLocalCar()
-    if car.IsNull():
-        return
-    car.ForceBoost(enable)
